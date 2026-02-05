@@ -1,13 +1,13 @@
-//! Provides the `glimpse` CLI tool for rendering 3D model thumbnails.
+//! Provides the `glimpse-cli` tool for rendering 3D model thumbnails.
 //!
-//! Usage: `glimpse <model_file> [size]`
+//! Usage: `glimpse-cli <model_file> [size]`
 //!
 //! Renders a PNG thumbnail next to the input file.
 //! Supports glTF/GLB, Blockbench (.bbmodel), and Vintage Story (.json).
 //!
 //! # Examples
 //! ```text
-//! glimpse model.gltf 256
+//! glimpse-cli model.gltf 256
 //! ```
 
 use std::path::PathBuf;

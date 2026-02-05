@@ -8,6 +8,10 @@ license = "MIT"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[[bin]]
+name = "glimpse-cli"
+path = "src/bin/glimpse.rs"
+
 [dependencies]
 gltf = "1.4"
 glam = "0.31"

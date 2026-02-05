@@ -37,6 +37,7 @@ LicenseFile=..\LICENSE
 
 [Files]
 Source: "..\target\release\glimpse.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\target\release\glimpse-cli.exe"; DestDir: "{app}"; Flags: ignoreversion; Tasks: install_cli
 
 ; ---------------------------------------------------------------------------
 ; Tasks -- extension selection checkboxes
@@ -46,6 +47,7 @@ Name: "ext_gltf";    Description: "Register .gltf (glTF 3D Model)";         Grou
 Name: "ext_glb";     Description: "Register .glb (GLB 3D Model)";           GroupDescription: "File extensions to handle:"; Flags: checkedonce
 Name: "ext_bbmodel"; Description: "Register .bbmodel (Blockbench 3D Model)"; GroupDescription: "File extensions to handle:"; Flags: checkedonce
 Name: "ext_json";    Description: "Register .json (Vintage Story models)";  GroupDescription: "File extensions to handle:"; Flags: checkedonce
+Name: "install_cli"; Description: "Install glimpse-cli.exe (command-line tool)"; GroupDescription: "Additional components:"
 
 ; ---------------------------------------------------------------------------
 ; Registry -- COM registration (always) + per-extension (conditional)
