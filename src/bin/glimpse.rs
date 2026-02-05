@@ -33,12 +33,7 @@ fn main() {
 
     let output = input.with_extension("png");
 
-    eprintln!(
-        "Rendering {} ({}x{})...",
-        input.display(),
-        size,
-        size
-    );
+    eprintln!("Rendering {} ({}x{})...", input.display(), size, size);
 
     let pixels = match glimpse::renderer::render_thumbnail_from_path(&input, size, size) {
         Some(p) => p,
@@ -60,4 +55,3 @@ fn main() {
 
     eprintln!("Saved {}", output.display());
 }
-

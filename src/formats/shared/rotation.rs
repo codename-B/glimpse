@@ -44,7 +44,6 @@ pub enum RotationOrder {
     ZYX,
 }
 
-
 /// Represents a rotation transform with origin and Euler angles (degrees).
 ///
 /// # Examples
@@ -109,9 +108,7 @@ impl RotationTransform {
     /// assert!(transform.is_zero());
     /// ```
     pub fn is_zero(&self) -> bool {
-        self.angles[0].abs() < 0.001
-            && self.angles[1].abs() < 0.001
-            && self.angles[2].abs() < 0.001
+        self.angles[0].abs() < 0.001 && self.angles[1].abs() < 0.001 && self.angles[2].abs() < 0.001
     }
 
     /// Creates a rotation transform, returning None if rotation is effectively zero.

@@ -11,7 +11,6 @@
 //! assert!(provider.set_data(vec![1, 2, 3]).is_ok());
 //! ```
 
-
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
@@ -155,8 +154,11 @@ impl Default for GltfThumbnailProvider {
 #[repr(C)]
 #[allow(non_snake_case)]
 struct IUnknown_Vtbl {
-    QueryInterface:
-        unsafe extern "system" fn(this: *mut c_void, riid: *const GUID, ppv: *mut *mut c_void) -> HRESULT,
+    QueryInterface: unsafe extern "system" fn(
+        this: *mut c_void,
+        riid: *const GUID,
+        ppv: *mut *mut c_void,
+    ) -> HRESULT,
     AddRef: unsafe extern "system" fn(this: *mut c_void) -> u32,
     Release: unsafe extern "system" fn(this: *mut c_void) -> u32,
 }

@@ -227,7 +227,13 @@ fn convert_vs_element_recursive(
     };
 
     for child in &element.children {
-        convert_vs_element_recursive(child, triangles, rotations_for_children, tex_width, tex_height);
+        convert_vs_element_recursive(
+            child,
+            triangles,
+            rotations_for_children,
+            tex_width,
+            tex_height,
+        );
     }
 }
 

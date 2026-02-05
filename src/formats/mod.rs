@@ -348,7 +348,9 @@ pub fn find_loader(data: &[u8], extension: Option<&str>) -> Option<Box<dyn Forma
     }
 
     // Fall back to content-based detection
-    loaders.into_iter().find(|loader| loader.can_load(data, extension))
+    loaders
+        .into_iter()
+        .find(|loader| loader.can_load(data, extension))
 }
 
 /// Loads a model from bytes, auto-detecting the format.

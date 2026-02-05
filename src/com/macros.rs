@@ -44,9 +44,9 @@
 #[macro_export]
 macro_rules! com_method {
     ($this:expr, $inner:ident : $T:ty => $body:expr) => {{
-        use $crate::com::helpers::ComWrapper;
         use windows::core::HRESULT;
         use windows::Win32::Foundation::{E_FAIL, E_POINTER};
+        use $crate::com::helpers::ComWrapper;
 
         unsafe {
             if $this.is_null() {
@@ -65,9 +65,7 @@ macro_rules! com_method {
             // catch_unwind prevents panics from unwinding across FFI.
             // AssertUnwindSafe is appropriate here: in unsafe COM
             // code where aborting on panic is the only alternative.
-            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> HRESULT {
-                $body
-            })) {
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> HRESULT { $body })) {
                 Ok(hr) => hr,
                 Err(_) => E_FAIL,
             }
@@ -94,8 +92,8 @@ macro_rules! com_method {
 #[macro_export]
 macro_rules! com_method_result {
     ($this:expr, $inner:ident : $T:ty => $body:expr) => {{
-        use $crate::com::helpers::ComWrapper;
         use windows::Win32::Foundation::{E_FAIL, E_POINTER, S_OK};
+        use $crate::com::helpers::ComWrapper;
 
         unsafe {
             if $this.is_null() {
@@ -113,7 +111,7 @@ macro_rules! com_method_result {
 
             // catch_unwind prevents panics from unwinding across FFI.
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let result: windows::core::Result<()> = (|| { $body })();
+                let result: windows::core::Result<()> = (|| $body)();
                 match result {
                     Ok(()) => S_OK,
                     Err(e) => e.code(),

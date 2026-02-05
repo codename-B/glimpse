@@ -86,7 +86,6 @@ fn test_vintagestory_loader_rejects_non_vs_json() {
 // Loader trait tests
 // ===========================================================================
 
-
 // ===========================================================================
 // Blockbench parsing tests (synthetic data)
 // ===========================================================================
@@ -396,7 +395,11 @@ fn test_real_bbmodel() {
     assert!(!model.triangles.is_empty(), "Should have triangles");
 
     // Verify textures loaded
-    let textured = model.triangles.iter().filter(|t| t.texture.is_some()).count();
+    let textured = model
+        .triangles
+        .iter()
+        .filter(|t| t.texture.is_some())
+        .count();
     assert!(textured > 0, "Should have textured triangles");
 
     // Render via path and bytes

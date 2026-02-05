@@ -94,7 +94,10 @@ mod tests {
         let data_url = format!("data:image/png;base64,{}", base64_data);
 
         let texture = load_texture_from_data_url(&data_url);
-        assert!(texture.is_some(), "load_texture_from_data_url returned None");
+        assert!(
+            texture.is_some(),
+            "load_texture_from_data_url returned None"
+        );
 
         let tex = texture.unwrap();
         assert_eq!(tex.width, 1);
@@ -106,5 +109,4 @@ mod tests {
         assert_eq!(tex.data[2], 255); // B
         assert_eq!(tex.data[3], 255); // A
     }
-
 }

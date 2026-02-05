@@ -164,5 +164,3 @@ extern "system" fn DllRegisterServer() -> HRESULT {
 extern "system" fn DllUnregisterServer() -> HRESULT {
     E_NOTIMPL
 }
-
-

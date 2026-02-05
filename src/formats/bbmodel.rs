@@ -422,7 +422,6 @@ fn build_element_parent_rotation_map(
     element_parent_rotations
 }
 
-
 /// Converts a Blockbench model to triangles.
 fn convert_bbmodel_to_triangles(model: BbmodelFile) -> LoadResult {
     let mut triangles = Vec::new();
@@ -430,11 +429,8 @@ fn convert_bbmodel_to_triangles(model: BbmodelFile) -> LoadResult {
     let element_parent_rotations = build_element_parent_rotation_map(&model, euler_order);
 
     // Load textures
-    let textures: Vec<Option<Arc<TextureData>>> = model
-        .textures
-        .iter()
-        .map(load_bbmodel_texture)
-        .collect();
+    let textures: Vec<Option<Arc<TextureData>>> =
+        model.textures.iter().map(load_bbmodel_texture).collect();
 
     // Get UV resolution for normalization
     // In Blockbench, UVs are in pixel coordinates based on the project resolution,

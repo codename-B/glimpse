@@ -306,13 +306,8 @@ mod tests {
     #[test]
     fn test_quad_to_triangles() {
         let vertices = compute_cube_vertices([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]);
-        let triangles = quad_to_triangles(
-            &vertices,
-            [0, 1, 2, 3],
-            DEFAULT_UVS,
-            [1.0, 1.0, 1.0],
-            None,
-        );
+        let triangles =
+            quad_to_triangles(&vertices, [0, 1, 2, 3], DEFAULT_UVS, [1.0, 1.0, 1.0], None);
 
         assert_eq!(triangles.len(), 2);
         // First triangle uses indices 0, 1, 2
@@ -325,4 +320,3 @@ mod tests {
         assert_eq!(triangles[1].verts[2], vertices[3]);
     }
 }
-

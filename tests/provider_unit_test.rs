@@ -76,4 +76,3 @@ fn test_provider_ref_counting() {
 
     println!("  [OK] Ref counting works correctly");
 }
-
