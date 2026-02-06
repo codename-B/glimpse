@@ -210,8 +210,13 @@ fn convert_vs_element_recursive(
     tex_width: f32,
     tex_height: f32,
 ) {
-    let cubes =
-        convert_vs_cube_to_triangles(element, parent_rotations, parent_offset, tex_width, tex_height);
+    let cubes = convert_vs_cube_to_triangles(
+        element,
+        parent_rotations,
+        parent_offset,
+        tex_width,
+        tex_height,
+    );
     triangles.extend(cubes);
 
     let elem_angles = vs_element_rotation(element);

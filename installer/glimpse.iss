@@ -7,7 +7,7 @@
 ;   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\glimpse.iss
 
 #define MyAppName "glimpse"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.2.0"
 #define MyAppPublisher "glimpse Contributors"
 #define MyAppURL "https://github.com/user/glimpse"
 #define MyAppDescription "3D model thumbnail previews in Windows Explorer"

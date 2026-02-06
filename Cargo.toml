@@ -1,6 +1,6 @@
 [package]
 name = "glimpse"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "glimpse — 3D model thumbnail previews in Windows File Explorer (glTF/GLB, Blockbench, Vintage Story)"
 license = "MIT"
