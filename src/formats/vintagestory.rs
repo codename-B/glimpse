@@ -173,8 +173,16 @@ fn convert_vs_model_to_triangles(model: VsModelFile) -> LoadResult {
     let tex_height = model.texture_height.unwrap_or(16) as f32;
 
     // Convert each element (cube) to triangles
+    // Root elements use zero offset; children accumulate parent positions.
     for element in &model.elements {
-        convert_vs_element_recursive(element, &mut triangles, &[], tex_width, tex_height);
+        convert_vs_element_recursive(
+            element,
+            &mut triangles,
+            &[],
+            [0.0; 3],
+            tex_width,
+            tex_height,
+        );
     }
 
     if triangles.is_empty() {
@@ -194,25 +202,26 @@ fn vs_element_rotation(element: &VsElement) -> Vec3 {
 }
 
 /// Recursively converts VS elements to triangles.
-///
-/// Each element's own rotation is applied around its own origin, then
-/// parent rotations are applied from nearest parent outward to root,
-/// each around their own origin.
 fn convert_vs_element_recursive(
     element: &VsElement,
     triangles: &mut Vec<Triangle>,
     parent_rotations: &[RotationTransform],
+    parent_offset: Vec3,
     tex_width: f32,
     tex_height: f32,
 ) {
-    let cubes = convert_vs_cube_to_triangles(element, parent_rotations, tex_width, tex_height);
+    let cubes =
+        convert_vs_cube_to_triangles(element, parent_rotations, parent_offset, tex_width, tex_height);
     triangles.extend(cubes);
 
-    // Build rotation chain for children: if this element has rotation,
-    // add it as a parent transform for child elements.
     let elem_angles = vs_element_rotation(element);
-    let elem_origin = element.rotation_origin.unwrap_or([0.0; 3]);
-    let elem_transform = RotationTransform::new_if_non_zero(elem_origin, elem_angles);
+    let raw_origin = element.rotation_origin.unwrap_or([0.0; 3]);
+    let world_origin = [
+        raw_origin[0] + parent_offset[0],
+        raw_origin[1] + parent_offset[1],
+        raw_origin[2] + parent_offset[2],
+    ];
+    let elem_transform = RotationTransform::new_if_non_zero(world_origin, elem_angles);
 
     let child_rotations;
     let rotations_for_children = if let Some(transform) = elem_transform {
@@ -226,11 +235,18 @@ fn convert_vs_element_recursive(
         parent_rotations
     };
 
+    let child_offset = [
+        parent_offset[0] + element.from[0],
+        parent_offset[1] + element.from[1],
+        parent_offset[2] + element.from[2],
+    ];
+
     for child in &element.children {
         convert_vs_element_recursive(
             child,
             triangles,
             rotations_for_children,
+            child_offset,
             tex_width,
             tex_height,
         );
@@ -241,6 +257,7 @@ fn convert_vs_element_recursive(
 fn convert_vs_cube_to_triangles(
     element: &VsElement,
     parent_rotations: &[RotationTransform],
+    parent_offset: Vec3,
     tex_width: f32,
     tex_height: f32,
 ) -> Vec<Triangle> {
@@ -248,9 +265,21 @@ fn convert_vs_cube_to_triangles(
 
     let scale = BLOCK_SCALE;
 
-    // Get cube corners (scaled from Minecraft 16-unit coordinates)
-    let from = scale_vec3(element.from, scale);
-    let to = scale_vec3(element.to, scale);
+    // Child coordinates are relative to parent; add the accumulated offset
+    // to convert to world space before scaling.
+    let world_from = [
+        element.from[0] + parent_offset[0],
+        element.from[1] + parent_offset[1],
+        element.from[2] + parent_offset[2],
+    ];
+    let world_to = [
+        element.to[0] + parent_offset[0],
+        element.to[1] + parent_offset[1],
+        element.to[2] + parent_offset[2],
+    ];
+
+    let from = scale_vec3(world_from, scale);
+    let to = scale_vec3(world_to, scale);
 
     // Compute the 8 vertices of the cube using shared utility
     let vertices = compute_cube_vertices(from, to);
@@ -263,7 +292,17 @@ fn convert_vs_cube_to_triangles(
     {
         let origin = element
             .rotation_origin
-            .map(|o| scale_vec3(o, scale))
+            .map(|o| {
+                // Rotation origin is also in local space; offset to world space
+                scale_vec3(
+                    [
+                        o[0] + parent_offset[0],
+                        o[1] + parent_offset[1],
+                        o[2] + parent_offset[2],
+                    ],
+                    scale,
+                )
+            })
             .unwrap_or_else(|| {
                 [
                     (from[0] + to[0]) / 2.0,
