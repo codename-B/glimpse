@@ -44,7 +44,7 @@ glimpse is a COM DLL implementing Windows' [`IThumbnailProvider`](https://learn.
 
 ## Installation
 
-Download `glimpse-setup.exe` from the [releases page](https://github.com/user/glimpse/releases) and run it. See [INSTALLER.md](INSTALLER.md) for details.
+Download `glimpse-setup.exe` from the [releases page](https://github.com/codename-B/glimpse/releases) and run it. See [INSTALLER.md](INSTALLER.md) for details.
 
 ### Building from Source
 
