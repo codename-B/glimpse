@@ -1,8 +1,8 @@
 //! Provides a Vintage Story JSON model format loader.
 //!
 //! Vintage Story uses a JSON5-based model format similar to Minecraft/Blockbench
-//! but with some differences. This loader renders shapes only (solid color)
-//! since textures are external files.
+//! but with some differences. When loaded from a file path within a VS asset
+//! tree, textures are resolved from the `assets/*/textures/` directories.
 //!
 //! # Examples
 //! ```
@@ -12,7 +12,9 @@
 //! assert!(loader.extensions().contains(&"json"));
 //! ```
 
-use std::path::Path;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use serde::Deserialize;
 
@@ -21,7 +23,8 @@ use super::shared::cube::{
     DEFAULT_UVS,
 };
 use super::shared::rotation::{rotate_vertices, RotationTransform};
-use super::{FormatLoader, LoadError, LoadResult, ModelData, Triangle, Vec3};
+use super::shared::texture::load_texture_from_file;
+use super::{FormatLoader, LoadError, LoadResult, ModelData, TextureData, Triangle, Vec3};
 
 /// The Vintage Story format loader.
 ///
@@ -56,6 +59,16 @@ impl FormatLoader for VintageStoryLoader {
         // Note: JSON5 allows unquoted keys, so check for both quoted and unquoted versions
         if let Ok(text) = std::str::from_utf8(data) {
             let sample = &text[..text.len().min(4000)];
+
+            // Reject files that match other JSON-based formats:
+            // - MC Bedrock has "minecraft:geometry"
+            // - MC Java has "parent" (e.g. "block/block") or "texture_size" (underscore)
+            if sample.contains("\"minecraft:geometry\"")
+                || sample.contains("\"parent\"")
+                || sample.contains("\"texture_size\"")
+            {
+                return false;
+            }
 
             // Must have "elements" array (quoted or unquoted key)
             let has_elements = sample.contains("\"elements\"") || sample.contains("elements:");
@@ -97,12 +110,34 @@ impl FormatLoader for VintageStoryLoader {
         let model: VsModelFile = json5::from_str(text)
             .map_err(|e| LoadError::InvalidData(format!("Failed to parse VS JSON: {}", e)))?;
 
-        convert_vs_model_to_triangles(model)
+        let ctx = VsTextureContext::empty(
+            model.texture_width.unwrap_or(16) as f32,
+            model.texture_height.unwrap_or(16) as f32,
+            &model.texture_sizes,
+        );
+
+        convert_vs_model_to_triangles(model, &ctx)
     }
 
     fn load_from_path(&self, path: &Path) -> LoadResult {
         let data = std::fs::read(path)?;
-        self.load_from_bytes(&data)
+        let text = std::str::from_utf8(&data)
+            .map_err(|_| LoadError::InvalidData("Invalid UTF-8 in VS model file".to_string()))?;
+
+        let model: VsModelFile = json5::from_str(text)
+            .map_err(|e| LoadError::InvalidData(format!("Failed to parse VS JSON: {}", e)))?;
+
+        // Try to resolve textures from the VS asset tree
+        let loaded_textures = resolve_vs_textures(path, &model.textures);
+
+        let ctx = VsTextureContext::new(
+            model.texture_width.unwrap_or(16) as f32,
+            model.texture_height.unwrap_or(16) as f32,
+            &model.texture_sizes,
+            loaded_textures,
+        );
+
+        convert_vs_model_to_triangles(model, &ctx)
     }
 }
 
@@ -117,6 +152,10 @@ struct VsModelFile {
     texture_width: Option<u32>,
     #[serde(default, rename = "textureHeight")]
     texture_height: Option<u32>,
+    #[serde(default)]
+    textures: HashMap<String, String>,
+    #[serde(default, rename = "textureSizes")]
+    texture_sizes: HashMap<String, [u32; 2]>,
 }
 
 #[derive(Deserialize)]
@@ -165,24 +204,208 @@ struct VsFace {
     enabled: Option<bool>,
 }
 
-/// Converts a Vintage Story model to triangles.
-fn convert_vs_model_to_triangles(model: VsModelFile) -> LoadResult {
-    let mut triangles = Vec::new();
+// ---- Texture context ----
 
-    let tex_width = model.texture_width.unwrap_or(16) as f32;
-    let tex_height = model.texture_height.unwrap_or(16) as f32;
+/// Holds resolved texture data and per-texture size overrides.
+struct VsTextureContext {
+    default_width: f32,
+    default_height: f32,
+    /// Per-texture size overrides from textureSizes.
+    texture_sizes: HashMap<String, [f32; 2]>,
+    /// Loaded texture image data keyed by texture name.
+    loaded_textures: HashMap<String, Arc<TextureData>>,
+}
+
+impl VsTextureContext {
+    fn empty(
+        default_width: f32,
+        default_height: f32,
+        texture_sizes: &HashMap<String, [u32; 2]>,
+    ) -> Self {
+        Self {
+            default_width,
+            default_height,
+            texture_sizes: texture_sizes
+                .iter()
+                .map(|(k, v)| (k.clone(), [v[0] as f32, v[1] as f32]))
+                .collect(),
+            loaded_textures: HashMap::new(),
+        }
+    }
+
+    fn new(
+        default_width: f32,
+        default_height: f32,
+        texture_sizes: &HashMap<String, [u32; 2]>,
+        loaded_textures: HashMap<String, Arc<TextureData>>,
+    ) -> Self {
+        Self {
+            default_width,
+            default_height,
+            texture_sizes: texture_sizes
+                .iter()
+                .map(|(k, v)| (k.clone(), [v[0] as f32, v[1] as f32]))
+                .collect(),
+            loaded_textures,
+        }
+    }
+
+    /// Gets the texture dimensions for a given texture name.
+    fn tex_size(&self, name: &str) -> (f32, f32) {
+        if let Some(size) = self.texture_sizes.get(name) {
+            (size[0], size[1])
+        } else {
+            (self.default_width, self.default_height)
+        }
+    }
+
+    /// Gets the loaded texture for a face's texture reference (e.g. "#tobias").
+    fn get_texture(&self, face_ref: &str) -> Option<Arc<TextureData>> {
+        let name = face_ref.strip_prefix('#').unwrap_or(face_ref);
+        self.loaded_textures.get(name).cloned()
+    }
+
+    /// Gets the texture size for a face's texture reference.
+    fn face_tex_size(&self, face_ref: &str) -> (f32, f32) {
+        let name = face_ref.strip_prefix('#').unwrap_or(face_ref);
+        self.tex_size(name)
+    }
+}
+
+// ---- Texture resolution ----
+
+/// Walks up from the model file to find the `assets/` root directory.
+fn find_assets_root(model_path: &Path) -> Option<PathBuf> {
+    let mut current = model_path.parent()?;
+    loop {
+        if current
+            .file_name()
+            .map(|n| n.eq_ignore_ascii_case("assets"))
+            .unwrap_or(false)
+        {
+            return Some(current.to_path_buf());
+        }
+        current = current.parent()?;
+    }
+}
+
+/// Determines the domain (e.g. "survival") from the model file path.
+/// The domain is the path component immediately after `assets/`.
+fn detect_domain(model_path: &Path, assets_root: &Path) -> Option<String> {
+    let relative = model_path.strip_prefix(assets_root).ok()?;
+    let first_component = relative.components().next()?;
+    Some(first_component.as_os_str().to_string_lossy().to_string())
+}
+
+/// Resolves VS texture references to actual PNG files on disk.
+///
+/// Strategy:
+/// 1. Find the `assets/` root by walking up from the model file
+/// 2. For each texture mapping (name → path like "entity/humanoid/tobias"):
+///    a. Try `assets/<same_domain>/textures/<path>.png` first
+///    b. Then try `assets/*/textures/<path>.png` for other domains
+fn resolve_vs_textures(
+    model_path: &Path,
+    textures: &HashMap<String, String>,
+) -> HashMap<String, Arc<TextureData>> {
+    let mut loaded = HashMap::new();
+
+    let assets_root = match find_assets_root(model_path) {
+        Some(root) => root,
+        None => return loaded,
+    };
+
+    let model_domain = detect_domain(model_path, &assets_root);
+
+    // List available domains under assets/
+    let domains: Vec<String> = std::fs::read_dir(&assets_root)
+        .ok()
+        .map(|entries| {
+            entries
+                .filter_map(|e| e.ok())
+                .filter(|e| e.file_type().map(|ft| ft.is_dir()).unwrap_or(false))
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    for (tex_name, tex_path) in textures {
+        // Strip domain prefix if present (e.g. "game:block/leather" → "block/leather")
+        let (override_domain, clean_path) = if let Some(pos) = tex_path.find(':') {
+            (Some(tex_path[..pos].to_string()), &tex_path[pos + 1..])
+        } else {
+            (None, tex_path.as_str())
+        };
+
+        // Normalize path separators
+        let tex_rel = clean_path.replace('/', std::path::MAIN_SEPARATOR_STR);
+
+        let mut found = None;
+
+        // If there's a domain override (e.g. "game:"), try that first
+        if let Some(ref domain) = override_domain {
+            let candidate = assets_root
+                .join(domain)
+                .join("textures")
+                .join(&tex_rel)
+                .with_extension("png");
+            if candidate.exists() {
+                found = load_texture_from_file(&candidate);
+            }
+        }
+
+        // Try same domain as the model file
+        if found.is_none() {
+            if let Some(ref domain) = model_domain {
+                let candidate = assets_root
+                    .join(domain)
+                    .join("textures")
+                    .join(&tex_rel)
+                    .with_extension("png");
+                if candidate.exists() {
+                    found = load_texture_from_file(&candidate);
+                }
+            }
+        }
+
+        // Try all other domains
+        if found.is_none() {
+            for domain in &domains {
+                if model_domain.as_deref() == Some(domain.as_str()) {
+                    continue; // Already tried
+                }
+                let candidate = assets_root
+                    .join(domain)
+                    .join("textures")
+                    .join(&tex_rel)
+                    .with_extension("png");
+                if candidate.exists() {
+                    found = load_texture_from_file(&candidate);
+                    if found.is_some() {
+                        break;
+                    }
+                }
+            }
+        }
+
+        if let Some(texture) = found {
+            loaded.insert(tex_name.clone(), texture);
+        }
+    }
+
+    loaded
+}
+
+// ---- Model conversion ----
+
+/// Converts a Vintage Story model to triangles.
+fn convert_vs_model_to_triangles(model: VsModelFile, ctx: &VsTextureContext) -> LoadResult {
+    let mut triangles = Vec::new();
 
     // Convert each element (cube) to triangles
     // Root elements use zero offset; children accumulate parent positions.
     for element in &model.elements {
-        convert_vs_element_recursive(
-            element,
-            &mut triangles,
-            &[],
-            [0.0; 3],
-            tex_width,
-            tex_height,
-        );
+        convert_vs_element_recursive(element, &mut triangles, &[], [0.0; 3], ctx);
     }
 
     if triangles.is_empty() {
@@ -207,16 +430,9 @@ fn convert_vs_element_recursive(
     triangles: &mut Vec<Triangle>,
     parent_rotations: &[RotationTransform],
     parent_offset: Vec3,
-    tex_width: f32,
-    tex_height: f32,
+    ctx: &VsTextureContext,
 ) {
-    let cubes = convert_vs_cube_to_triangles(
-        element,
-        parent_rotations,
-        parent_offset,
-        tex_width,
-        tex_height,
-    );
+    let cubes = convert_vs_cube_to_triangles(element, parent_rotations, parent_offset, ctx);
     triangles.extend(cubes);
 
     let elem_angles = vs_element_rotation(element);
@@ -247,14 +463,7 @@ fn convert_vs_element_recursive(
     ];
 
     for child in &element.children {
-        convert_vs_element_recursive(
-            child,
-            triangles,
-            rotations_for_children,
-            child_offset,
-            tex_width,
-            tex_height,
-        );
+        convert_vs_element_recursive(child, triangles, rotations_for_children, child_offset, ctx);
     }
 }
 
@@ -263,8 +472,7 @@ fn convert_vs_cube_to_triangles(
     element: &VsElement,
     parent_rotations: &[RotationTransform],
     parent_offset: Vec3,
-    tex_width: f32,
-    tex_height: f32,
+    ctx: &VsTextureContext,
 ) -> Vec<Triangle> {
     let mut triangles = Vec::with_capacity(12);
 
@@ -363,6 +571,19 @@ fn convert_vs_cube_to_triangles(
             continue;
         }
 
+        // Resolve texture for this face
+        let face_texture = face
+            .texture
+            .as_deref()
+            .and_then(|tex_ref| ctx.get_texture(tex_ref));
+
+        // Get the texture dimensions for UV normalization
+        let (tex_width, tex_height) = face
+            .texture
+            .as_deref()
+            .map(|tex_ref| ctx.face_tex_size(tex_ref))
+            .unwrap_or((ctx.default_width, ctx.default_height));
+
         // Compute UVs from face data, or use defaults
         let uvs = if let Some(uv) = &face.uv {
             // VS UVs are in pixel coordinates [u1, v1, u2, v2]
@@ -378,7 +599,7 @@ fn convert_vs_cube_to_triangles(
         };
 
         // Create two triangles for this face using shared utility
-        let tris = quad_to_triangles(&vertices, indices, uvs, default_color, None);
+        let tris = quad_to_triangles(&vertices, indices, uvs, default_color, face_texture);
         triangles.extend(tris);
     }
 

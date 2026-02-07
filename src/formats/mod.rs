@@ -14,6 +14,9 @@
 
 pub mod bbmodel;
 pub mod gltf;
+pub mod mc_bedrock;
+pub mod mc_java;
+pub mod obj;
 pub mod shared;
 pub mod vintagestory;
 
@@ -319,7 +322,10 @@ pub trait FormatLoader: Send + Sync {
 pub fn get_loaders() -> Vec<Box<dyn FormatLoader>> {
     vec![
         Box::new(gltf::GltfLoader),
+        Box::new(obj::ObjLoader),
         Box::new(bbmodel::BbmodelLoader),
+        Box::new(mc_bedrock::McBedrockLoader),
+        Box::new(mc_java::McJavaLoader),
         Box::new(vintagestory::VintageStoryLoader),
     ]
 }

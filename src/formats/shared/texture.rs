@@ -13,6 +13,7 @@
 //! assert!(texture.is_some());
 //! ```
 
+use std::path::Path;
 use std::sync::Arc;
 
 use crate::formats::TextureData;
@@ -51,6 +52,22 @@ pub fn load_texture_from_data_url(source: &str) -> Option<Arc<TextureData>> {
     let (width, height) = img.dimensions();
     let rgba = img.to_rgba8();
 
+    Some(Arc::new(TextureData {
+        width,
+        height,
+        data: rgba.into_raw(),
+    }))
+}
+
+/// Loads a texture from an image file on disk (PNG, JPEG, etc.).
+///
+/// Returns None if the file cannot be read or decoded.
+pub fn load_texture_from_file(path: &Path) -> Option<Arc<TextureData>> {
+    let bytes = std::fs::read(path).ok()?;
+    use image::GenericImageView;
+    let img = image::load_from_memory(&bytes).ok()?;
+    let (width, height) = img.dimensions();
+    let rgba = img.to_rgba8();
     Some(Arc::new(TextureData {
         width,
         height,

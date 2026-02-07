@@ -1,9 +1,10 @@
 //! Provides the glimpse Windows Shell thumbnail handler for 3D model files.
 //!
 //! This DLL registers as a COM server that Windows Explorer calls to generate
-//! thumbnail previews for 3D model files including glTF/GLB, Blockbench (.bbmodel),
-//! and Vintage Story (.json) models. It uses a software rasterizer to render
-//! small previews of 3D models.
+//! thumbnail previews for 3D model files including glTF/GLB, Wavefront OBJ,
+//! Blockbench (.bbmodel), Minecraft Java/Bedrock (.json), and Vintage Story
+//! (.json) models. It uses a software rasterizer to render small previews of
+//! 3D models.
 //!
 //! # Build
 //! ```text
