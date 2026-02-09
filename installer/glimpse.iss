@@ -7,7 +7,7 @@
 ;   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\glimpse.iss
 
 #define MyAppName "glimpse"
-#define MyAppVersion "0.2.0"
+#define MyAppVersion "0.4.0"
 #define MyAppPublisher "glimpse Contributors"
 #define MyAppURL "https://github.com/user/glimpse"
 #define MyAppDescription "3D model thumbnail previews in Windows Explorer"
@@ -58,6 +58,11 @@ Name: "install_cli"; Description: "Install glimpse-cli.exe (command-line tool)";
 Root: HKLM; Subkey: "SOFTWARE\Classes\CLSID\{#MyCLSID}"; ValueType: string; ValueName: ""; ValueData: "glimpse Thumbnail Provider"; Flags: uninsdeletekey
 Root: HKLM; Subkey: "SOFTWARE\Classes\CLSID\{#MyCLSID}\InprocServer32"; ValueType: string; ValueName: ""; ValueData: "{app}\glimpse.dll"; Flags: uninsdeletekey
 Root: HKLM; Subkey: "SOFTWARE\Classes\CLSID\{#MyCLSID}\InprocServer32"; ValueType: string; ValueName: "ThreadingModel"; ValueData: "Both"
+
+; Force Explorer to use IInitializeWithFile instead of IInitializeWithStream.
+; This is required for formats (like Vintage Story) that need to resolve external
+; textures from the file system. Without this, VS models appear greyscale.
+Root: HKLM; Subkey: "SOFTWARE\Classes\CLSID\{#MyCLSID}"; ValueType: dword; ValueName: "DisableProcessIsolation"; ValueData: "1"
 
 ; --- Shell Extensions Approved (always) ---
 Root: HKLM; Subkey: "SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Approved"; ValueType: string; ValueName: "{#MyCLSID}"; ValueData: "glimpse Thumbnail Provider"; Flags: uninsdeletevalue
@@ -145,6 +150,23 @@ begin
   end;
 end;
 
+// Unregister the thumbnail handler from an existing file-type class.
+// Mirrors RegisterOnExistingClass to clean up dynamically-written keys.
+procedure UnregisterFromExistingClass(Extension: String);
+var
+  ClassName: String;
+begin
+  if RegQueryStringValue(HKEY_CLASSES_ROOT, Extension, '', ClassName) then
+  begin
+    if (ClassName <> '') then
+    begin
+      RegDeleteKeyIncludingSubkeys(
+        HKEY_LOCAL_MACHINE,
+        'SOFTWARE\Classes\' + ClassName + '\ShellEx\{E357FCCD-A995-4576-B01F-234630154E96}');
+    end;
+  end;
+end;
+
 // ---------------------------------------------------------------
 // Install events
 // ---------------------------------------------------------------
@@ -196,6 +218,15 @@ end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
+  if CurUninstallStep = usUninstall then
+  begin
+    // Clean up dynamically-registered ShellEx keys from existing file-type classes
+    UnregisterFromExistingClass('.gltf');
+    UnregisterFromExistingClass('.glb');
+    UnregisterFromExistingClass('.bbmodel');
+    UnregisterFromExistingClass('.json');
+  end;
+
   if CurUninstallStep = usPostUninstall then
   begin
     // Always restart Explorer after uninstall (it was killed above)
