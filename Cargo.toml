@@ -15,7 +15,7 @@ path = "src/bin/glimpse.rs"
 [dependencies]
 base64 = "0.22"
 glam = "0.31"
-gltf = "1.4"
+gltf = { version = "1.4", features = ["KHR_materials_unlit", "KHR_texture_transform", "KHR_materials_specular", "KHR_materials_ior", "KHR_materials_emissive_strength"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 json5 = "0.4"
 obj-rs = "0.7"
